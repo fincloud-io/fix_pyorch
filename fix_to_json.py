@@ -7,7 +7,15 @@ from fix_pyorch.message_spec import Repository
 LINE_PARSER = re.compile('(?P<timestamp>[0-9]{8}-[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}) : (?P<message>.*)')
 
 
-def convert_to_json(file, repo):
+def convert_to_json(file, repo, no_admin_messages):
+    messages = parse_messages(file, repo, no_admin_messages)
+    msg_json = ""
+    for msg in messages:
+        msg_json += msg.to_json()+","
+    return "["+msg_json[:-1]+"]"
+
+
+def parse_messages(file, repo, no_admin_messages):
     messages = []
     with open(file, 'r') as fh:
         for line in fh.readlines():
@@ -15,18 +23,18 @@ def convert_to_json(file, repo):
             if not grp:
                 continue
             msg = Message.parse(grp['message'], repo)
-            if msg.is_admin():
+            if no_admin_messages and msg.is_admin():
                 continue
-            messages.append(msg.to_json())
-    for msg in messages:
-        print(msg)
+            messages.append(msg)
+    return messages
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert fix message file to json')
     parser.add_argument('file', type=str, nargs='+', help='json file to parse')
     parser.add_argument("--repository", help="FIX Orchestra repository file")
+    parser.add_argument("-na","--no_admin_messages", help="Skip admin messages on parsing", action="store_true")
     args = parser.parse_args()
     _repo = Repository.parse_repository(args.repository if args.repository else './FixRepository44.xml')
     for f in args.file:
-        convert_to_json(f, _repo)
+        print(convert_to_json(f, _repo, args.no_admin_messages))

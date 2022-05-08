@@ -163,10 +163,11 @@ class Message(FIXObject):
             if field.is_mesg_type():
                 msg = Message(repo, field, pre_header)
                 context = msg
-            if not msg:
+            elif not msg:
                 pre_header.append(field)
                 continue
-            context = cls.add_field(field, repo, context)
+            else:
+                context = cls.add_field(field, repo, context)
         return msg
 
     @classmethod
