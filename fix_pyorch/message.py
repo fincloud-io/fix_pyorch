@@ -52,9 +52,18 @@ class Group(FIXObject):
         self.parent_context = parent_context
 
     def contains(self, field):
-        for ref in self.spec.spec.fieldRef:
+        for ref in self.spec.spec.fieldRef:                                     # Check field against all possible fields
             if int(ref.get('id')) == field.tag:
                 return True
+        try:
+            grpRef = self.spec.spec.groupRef
+            for ref in grpRef:                                                  # Check subgroups for num field..
+                sub_grp = self._repo.group_spec_byid(ref.get('id'))
+                if sub_grp and int(sub_grp.get_num_field_id()) == field.tag:
+                    return True
+        except AttributeError:
+            return False
+
         return False
 
     def get_group_begin_field_id(self):
@@ -172,13 +181,21 @@ class Message(FIXObject):
 
     @classmethod
     def add_field(cls, field, repo, context):
-        if field.spec is None:
+        if field.spec is None:                                  # tag is not in repo (probably custom field)
             # print('Processing unknown tag: {0}'.format(field))
             context.add_element(field)
             return context
+
         elif field.spec.is_num_in_group():                      # is this is the start of a group list ?
-            group_list = GroupList(repo, context, field)
-            context.add_element(group_list)
+            if context.contains(field):                         # Is the group start valid here ?
+                group_list = GroupList(repo, context, field)
+                context.add_element(group_list)
+            else:                                               # if not valid, check parent contexts
+                while not context.contains(field):
+                    context = context.parent_context            # check the parent (root accepts all fields)
+                group_list = GroupList(repo, context, field)
+                context.add_element(group_list)
+
             return group_list                                   # Change context to the group list
 
         elif field.tag == context.get_group_begin_field_id():
