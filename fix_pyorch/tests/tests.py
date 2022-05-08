@@ -6,6 +6,13 @@ import unittest
 
 initialised = False
 
+static_test_data = [
+    "8=FIX.4.49=7535=A49=ICE34=152=20200323-22:55:02.50041756=11057=498=0108=30141=Y10=253",
+    "8=FIX.4.49=5835=049=ICE34=6552=20200323-23:14:03.67247856=11057=410=239",
+]
+
+test_cases = ["Logon", "Heartbeat"]
+
 
 class TestBasicRepositorySpecFunctions(unittest.TestCase):
 
@@ -31,16 +38,23 @@ class TestBasicRepositorySpecFunctions(unittest.TestCase):
 
     def test_lookup_basic_field_spec(self):
         self.assertEqual(self.repo.field_spec_byid(11).name(), 'ClOrdID')
+        self.assertEqual(self.repo.field_spec_byid(17).name(), 'ExecID')
+        self.assertEqual(self.repo.field_spec_byid(37).name(), 'OrderID')
+        self.assertEqual(self.repo.field_spec_byid(48).name(), 'SecurityID')
+        self.assertEqual(self.repo.field_spec_byid(49).name(), 'SenderCompID')
+        self.assertEqual(self.repo.field_spec_byid(50).name(), 'SenderSubID')
 
     def test_lookup_basic_message_spec(self):
         self.assertEqual(self.repo.message_spec_bytype('D').name(), 'NewOrderSingle')
+        self.assertEqual(self.repo.message_spec_bytype('AE').name(), 'TradeCaptureReport')
+        self.assertEqual(self.repo.message_spec_bytype('8').name(), 'ExecutionReport')
+        self.assertEqual(self.repo.message_spec_bytype('A').name(), 'Logon')
+        self.assertEqual(self.repo.message_spec_bytype('0').name(), 'Heartbeat')
 
     def test_lookup_basic_message_field_specs(self):
-        # New Order Single message has a PartyGroup
-        nos = self.repo.message_spec_bytype('D')
-        #field_specs = nos.get_field_specs()
-        group_specs = nos.get_group_specs()
-        self.assertEqual(self.repo.message_spec_bytype('D').name(), 'NewOrderSingle')
+        for i, tm in enumerate(static_test_data):
+            msg = Message.parse(tm, self.repo)
+            self.assertEqual(msg.get_field_by_id(35).value_name(), test_cases[i])
 
     def test_message_parsing(self):
         for line in self.raw_data:

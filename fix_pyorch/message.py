@@ -62,8 +62,7 @@ class Group(FIXObject):
                 if sub_grp and int(sub_grp.get_num_field_id()) == field.tag:
                     return True
         except AttributeError:
-            return False
-
+            pass
         return False
 
     def get_group_begin_field_id(self):
@@ -142,13 +141,11 @@ class Message(FIXObject):
     def is_admin(self):
         return self.spec.category() == "Session"
 
-    def get_tag_by_id(self, tag):
-        val = None
-        for field in self._elements:
-            if field.tag == tag:
-                val = field.val
-                break
-        return val
+    def get_field_by_id(self, _id):             # does not get repeating group fields..
+        for el in self._elements:
+            if isinstance(el, Field) and el.tag == _id:
+                return el
+        return None
 
     def to_json(self):
         json = '{'
