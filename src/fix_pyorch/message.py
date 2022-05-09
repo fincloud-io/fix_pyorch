@@ -139,7 +139,10 @@ class Message(FIXObject):
         self._elements.append(element)
 
     def is_admin(self):
-        return self.spec.category() == "Session"
+        if self.spec:
+            return self.spec.category() == "Session"
+        else:
+            return False
 
     def get_field_by_id(self, _id):             # does not get repeating group fields..
         for el in self._elements:
