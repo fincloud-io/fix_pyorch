@@ -1,10 +1,11 @@
 import re
+import os
 import yaml
 from fix_pyorch.message_spec import Repository
 from fix_pyorch.message import Message
 import unittest
 
-initialised = False
+config = None
 
 static_test_data = [
     "8=FIX.4.49=7535=A49=ICE34=152=20200323-22:55:02.50041756=11057=498=0108=30141=Y10=253",
@@ -22,19 +23,21 @@ class TestBasicRepositorySpecFunctions(unittest.TestCase):
         self.raw_data = None
         self.LINE_PARSER = None
         self.test_messages = None
-        self.initialised = False
 
     def setUp(self):
-        if not self.initialised:
-            with open(r'config_test.yml') as file:
+        global config
+        if not config:
+            config_location = os.getenv("FIX_PYORCH_TEST_CONFIG", default="config_test.yaml")
+            print('Loading config .. {0}'.format(config_location))
+            with open(config_location) as file:
                 config = yaml.load(file, Loader=yaml.Loader)
-            self.repo = Repository.parse_repository(config['repository'])
             if config.get('test_data', None):
+                print('Loading test data .. {0}'.format(config.get('test_data')))
                 with open(config.get('test_data')) as file:
                     self.raw_data = file.readlines()
-                self.LINE_PARSER = re.compile(config['line_regex'])
-            self.test_messages = []
-            self.initialised = True
+
+        self.LINE_PARSER = re.compile(config['line_regex'])
+        self.repo = Repository.parse_repository(config['repository'])
 
     def test_lookup_basic_field_spec(self):
         self.assertEqual(self.repo.field_spec_byid(11).name(), 'ClOrdID')
@@ -57,17 +60,14 @@ class TestBasicRepositorySpecFunctions(unittest.TestCase):
             self.assertEqual(msg.get_field_by_id(35).value_name(), test_cases[i])
 
     def test_message_parsing(self):
-        for line in self.raw_data:
-            grp = self.LINE_PARSER.match(line)
-            if not grp:
-                continue
-            msg = Message.parse(grp['message'], self.repo)
-            if msg.is_admin():
-                continue
-            #self.test_messages.append(msg)
-        #for msg in self.test_messages:
-            #print(msg)
-        #print(test_messages)
+        if self.raw_data:
+            for line in self.raw_data:
+                grp = self.LINE_PARSER.match(line)
+                if not grp:
+                    continue
+                msg = Message.parse(grp['message'], self.repo)
+                if msg.is_admin():
+                    continue
 
 
 if __name__ == '__main__':
