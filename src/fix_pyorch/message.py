@@ -26,7 +26,7 @@ class Field(FIXObject):
         if not self.spec:
             return self.val
         val_name = self.val
-        field_enum = self.spec.get_field_enumeration()
+        field_enum = self.spec.get_codeset_spec()
         if field_enum:
             for c in field_enum.spec.code:
                 if c.attrib['value'] == self.val:
@@ -42,27 +42,21 @@ class Field(FIXObject):
 
 class Group(FIXObject):
     def __init__(self, repo, parent_context, field):
-        if isinstance(parent_context, GroupList):
-            spec = parent_context.num_items_field.spec.get_associated_group_spec()
-        else:
-            spec = parent_context.spec
-        FIXObject.__init__(self, repo, spec)
+        FIXObject.__init__(self, repo, parent_context.spec)
         self.elements = []
         self.elements.append(field)
         self.parent_context = parent_context
 
-    def contains(self, field):
-        for ref in self.spec.spec.fieldRef:                                     # Check field against all possible fields
-            if int(ref.get('id')) == field.tag:
+    def contains_field(self, field):
+        for ref in self.spec.get_field_specs():                                     # Check field against all possible fields
+            if int(ref.id()) == field.tag:
                 return True
-        try:
-            grpRef = self.spec.spec.groupRef
-            for ref in grpRef:                                                  # Check subgroups for num field..
-                sub_grp = self._repo.group_spec_byid(ref.get('id'))
-                if sub_grp and int(sub_grp.get_num_field_id()) == field.tag:
+        for gref in self.spec.get_group_specs():
+            if int(gref.get_num_field_id()) == field.tag:
+                return gref
+            for ref in gref.get_field_specs():
+                if int(ref.id()) == field.tag:
                     return True
-        except AttributeError:
-            pass
         return False
 
     def get_group_begin_field_id(self):
@@ -84,23 +78,29 @@ class Group(FIXObject):
         return json[:-1]+'}'
 
     def __str__(self):
-        display = ''
+        display = '['
         for element in self.elements:
             display += str(element)+', '
-        return '['+display+']'
+        return display[:-1]+']'
 
 
 class GroupList(UserList, FIXObject):
-    def __init__(self, repo, parent_context, num_items_field):
-        FIXObject.__init__(self, repo, num_items_field.spec.get_associated_group_spec())
+    def __init__(self, repo, parent_context, num_items_field, group_spec):
+        FIXObject.__init__(self, repo, group_spec)
         UserList.__init__(self)
         self.num_items_field = num_items_field
         self.parent_context = parent_context
 
-    def contains(self, field):
-        for ref in self.spec.spec.fieldRef:
-            if ref.get('id') == field.tag:
+    def contains_field(self, field):
+        for ref in self.spec.get_field_specs():
+            if int(ref.id()) == field.tag:
                 return True
+        for gref in self.spec.get_group_specs():
+            if int(gref.get_num_field_id()) == field.tag:
+                return gref
+            for ref in gref.get_field_specs():
+                if int(ref.id()) == str(field.tag):
+                    return True
         return False
 
     def get_group_begin_field_id(self):
@@ -116,10 +116,10 @@ class GroupList(UserList, FIXObject):
         return '"{0}":[{1}]'.format(self.spec.name(), json[:-1])
 
     def __str__(self):
-        display = ''
+        display = '['
         for element in self.data:
             display += str(element)+', '
-        return '['+display+']'
+        return display[:-1]+']'
 
 
 class Message(FIXObject):
@@ -129,8 +129,23 @@ class Message(FIXObject):
         self._elements.append(field)
         self.parent_context = None
 
-    def contains(self, field):                   # All fields are in context at message level (dont validate at this point)
-        return True
+    def contains_field(self, field):                   # All fields are in context at message level (dont validate at this point)
+        if not field.spec.is_num_in_group():
+            return True
+        for ref in self.spec.spec.structure.fieldRef:
+            if ref.get('id') == str(field.tag):
+                return True
+        for gref in self.spec.spec.structure.groupRef:
+            grp_spec = self._repo.group_spec_byid(gref.get('id'))
+            if grp_spec.spec.numInGroup.attrib['id'] == str(field.tag):
+                return grp_spec
+            try:
+                for ref in grp_spec.spec.fieldRef:
+                    if ref.get('id') == str(field.tag):
+                        return True
+            except AttributeError:
+                continue
+        return False
 
     def get_group_begin_field_id(self):
         return False
@@ -187,28 +202,30 @@ class Message(FIXObject):
             return context
 
         elif field.spec.is_num_in_group():                      # is this is the start of a group list ?
-            if context.contains(field):                         # Is the group start valid here ?
-                group_list = GroupList(repo, context, field)
+            grp = context.contains_field(field)                       # if its a num_in_group field, then rtn group_spec
+            if grp:                                             # Is the group start valid here ?
+                group_list = GroupList(repo, context, field, grp)
                 context.add_element(group_list)
             else:                                               # if not valid, check parent contexts
-                while not context.contains(field):
+                while not grp:
                     context = context.parent_context            # check the parent (root accepts all fields)
-                group_list = GroupList(repo, context, field)
+                    grp = context.contains_field(field)
+                group_list = GroupList(repo, context, field, grp)
                 context.add_element(group_list)
 
             return group_list                                   # Change context to the group list
 
         elif field.tag == context.get_group_begin_field_id():
-            if context.contains(field):                         # If the context already contains the begin field, add a sibling
-                grp = Group(repo, context.parent_context, field)
-                context.parent_context.add_element(grp)
-            else:
+            if isinstance(context, GroupList):
                 grp = Group(repo, context, field)
                 context.add_element(grp)
+            else:
+                grp = Group(repo, context.parent_context, field)
+                context.parent_context.add_element(grp)
             return grp
 
-        elif not context.contains(field):                       # if the field is not in our context
-            while not context.contains(field):
+        elif not context.contains_field(field):                       # if the field is not in our context
+            while not context.contains_field(field):
                 context = context.parent_context                # check the parent (root accepts all fields)
             return cls.add_field(field, repo, context)
 

@@ -50,12 +50,6 @@ class Repository:
     def group_spec_byid(self, _id):
         return self.groups.get(str(_id), None)
 
-    def group_spec_bynum_field(self, _id):
-        for grp in self.groups.values():
-            if grp.get_num_field_spec().id() == str(_id):
-                return grp
-        return None
-
     @classmethod
     def parse_repository(cls, repo_file):
         return Repository(objectify.parse(repo_file))
@@ -118,13 +112,13 @@ class FieldSpec(ObjectSpec):
         ObjectSpec.__init__(self, repo, field_spec)
 
     def is_num_in_group(self):
-        return self.type() == "NumInGroup"
+        if self.type() == "NumInGroup":
+            return True
+        enum = self.get_codeset_spec()
+        if enum and enum.type() == "NumInGroup":
+            return True
 
-    def get_associated_group_spec(self):
-        if self.is_num_in_group():
-            return self.repo.group_spec_bynum_field(self.id())
-
-    def get_field_enumeration(self):
+    def get_codeset_spec(self):
         return self.repo.codeset_spec_byid(self.id())
 
 
@@ -133,11 +127,27 @@ class GroupSpec(ObjectSpec):
         ObjectSpec.__init__(self, repo, group_spec)
 
     def get_num_field_spec(self):
-        return self.repo.field_spec_byid(self.spec.numInGroup.get('id'))
+        return self.repo.field_spec_byid(self.get_num_field_id())
 
-    def get_group_field_specs(self):
+    def get_num_field_id(self):
+        return self.spec.numInGroup.get('id')
+
+    def get_field_specs(self):
         specs = []
-        for fr in self.spec.fieldRef:
-            _id = fr.attrib.get('id', None)
-            specs.append(self.repo.field_spec_byid(_id))
+        try :
+            for fr in self.spec.fieldRef:
+                _id = fr.attrib.get('id', None)
+                specs.append(self.repo.field_spec_byid(_id))
+        except AttributeError:
+            pass
+        return specs
+
+    def get_group_specs(self):                                      # Nested groups
+        specs = []
+        try :
+            for gr in self.spec.groupRef:
+                _id = gr.attrib.get('id', None)
+                specs.append(self.repo.group_spec_byid(_id))
+        except AttributeError:
+            pass
         return specs
