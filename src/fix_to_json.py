@@ -1,18 +1,16 @@
 import argparse
 import re
+from fix_pyorch import Message, Repository
 
-from fix_pyorch.message import Message
-from fix_pyorch.message_spec import Repository
-
-LINE_PARSER = re.compile('(?P<timestamp>[0-9]{8}-[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}) : (?P<message>.*)')
+LINE_PARSER = re.compile('(?P<timestamp>[0-9]{8}-[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{2,9}) : (?P<message>.*)')
 
 
 def convert_to_json(file, repo, no_admin_messages):
     messages = parse_messages(file, repo, no_admin_messages)
-    msg_json = ""
+    msgs = []
     for msg in messages:
-        msg_json += msg.to_json()+","
-    return "["+msg_json[:-1]+"]"
+        msgs.append(msg.to_json())
+    return str(msgs)
 
 
 def parse_messages(file, repo, no_admin_messages):
