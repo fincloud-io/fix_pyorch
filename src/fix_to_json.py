@@ -9,10 +9,10 @@ LINE_PARSER = re.compile('(?P<timestamp>[0-9]{8}-[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9
 
 def convert_to_json(file, repo, no_admin_messages):
     messages = parse_messages(file, repo, no_admin_messages)
-    msg_json = ""
+    msgs = []
     for msg in messages:
-        msg_json += msg.to_json()+","
-    return "["+msg_json[:-1]+"]"
+        msgs.append(msg.to_json())
+    return str(msgs)
 
 
 def parse_messages(file, repo, no_admin_messages):
