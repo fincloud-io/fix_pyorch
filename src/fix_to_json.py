@@ -1,8 +1,6 @@
 import argparse
 import re
-
-from fix_pyorch.message import Message
-from fix_pyorch.message_spec import Repository
+from fix_pyorch import Message, Repository
 
 LINE_PARSER = re.compile('(?P<timestamp>[0-9]{8}-[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{2,9}) : (?P<message>.*)')
 
