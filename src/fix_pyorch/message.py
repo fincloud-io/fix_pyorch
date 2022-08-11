@@ -6,7 +6,7 @@ TAG_VALUE_MATCH = r'(?P<tag>\d+)=(?P<value>.*?)\u0001'
 
 
 def escape_quotes(in_str):
-    return str(in_str).replace('"', "\\"'')
+    return str(in_str).replace('"', '\\"')
 
 
 class FIXObject:
