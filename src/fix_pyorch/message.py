@@ -5,10 +5,6 @@ import json
 TAG_VALUE_MATCH = r'(?P<tag>\d+)=(?P<value>.*?)\u0001'
 
 
-def escape_quotes(in_str):
-    return str(in_str).replace('"', '\\"')
-
-
 class FIXObject:
     def __init__(self, repo, spec):
         self.spec = spec
@@ -38,11 +34,11 @@ class Field(FIXObject):
                     return c.attrib['name']
         return val_name
 
-    def _to_json_string(self):
-        return '"{}":"{}"'.format(self.tag_name(), escape_quotes(self.value_name()))
+    def to_json(self):
+        return {self.tag_name(): self.value_name()}
 
     def __str__(self):
-        return self._to_json_string()
+        return json.JSONEncoder().encode(self.to_json())[1:-1]
 
 
 class Group(FIXObject):
@@ -73,14 +69,16 @@ class Group(FIXObject):
     def get_first_field_id(self):
         self.spec.fieldRef[0].get('id')
 
-    def _to_json_string(self):
-        json_string = '{'
-        for el in self.elements:
-            json_string += el._to_json_string() + ','
-        return json_string[:-1]+'}'
+    def to_json(self):
+        msg = {}
+        for f in self.elements:
+            j = f.to_json()
+            for k, v in j.items():
+                msg[k] = v
+        return msg
 
     def __str__(self):
-        return self._to_json_string()
+        return json.JSONEncoder().encode(self.to_json())
 
 
 class GroupList(UserList, FIXObject):
@@ -103,14 +101,11 @@ class GroupList(UserList, FIXObject):
     def add_element(self, element):
         self.append(element)
 
-    def _to_json_string(self):
-        json_string = ""
-        for el in self.data:
-            json_string += el._to_json_string() + ','
-        return '"{0}":[{1}]'.format(self.spec.name(), json_string[:-1])
+    def to_json(self):
+        return {self.spec.name(): [(lambda e: e.to_json())(e) for e in self.data]}
 
     def __str__(self):
-        self._to_json_string()
+        return json.JSONEncoder().encode(self.to_json())
 
 
 class Message(FIXObject):
@@ -135,17 +130,16 @@ class Message(FIXObject):
                 return el
         return None
 
-    def _to_json_string(self):
-        json_string = '{'
-        for el in self._elements:
-            json_string += el._to_json_string() + ','
-        return json_string[:-1]+'}'
-
     def to_json(self):
-        return json.loads(self._to_json_string())
+        msg = {}
+        for f in self._elements:
+            j = f.to_json()
+            for k, v in j.items():
+                msg[k] = v
+        return msg
 
     def __str__(self):
-        return self._to_json_string()
+        return json.JSONEncoder().encode(self.to_json())
 
     @classmethod
     def parse(cls, msg_string, repo):
