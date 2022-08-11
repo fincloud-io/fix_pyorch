@@ -5,6 +5,10 @@ import json
 TAG_VALUE_MATCH = r'(?P<tag>\d+)=(?P<value>.*?)\u0001'
 
 
+def escape_quotes(in_str):
+    return str(in_str).replace('"', "\\"'')
+
+
 class FIXObject:
     def __init__(self, repo, spec):
         self.spec = spec
@@ -35,7 +39,7 @@ class Field(FIXObject):
         return val_name
 
     def _to_json_string(self):
-        return '"{}":"{}"'.format(self.tag_name(), self.value_name())
+        return '"{}":"{}"'.format(self.tag_name(), escape_quotes(self.value_name()))
 
     def __str__(self):
         return self._to_json_string()
